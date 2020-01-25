@@ -1,4 +1,4 @@
-package customlogger
+package customloggerpg
 
 import (
 	"database/sql"

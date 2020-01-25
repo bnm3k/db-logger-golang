@@ -6,7 +6,7 @@ import (
 	"log"
 
 	_ "github.com/lib/pq"
-	logpg "github.com/nagamocha3000/db-logger-golang/pkg/logger"
+	logpg "github.com/nagamocha3000/db-logger-golang/pkg/logger/pg"
 )
 
 func openDB(host string, port int, dbname string) (*sql.DB, error) {
@@ -28,11 +28,12 @@ func main() {
 			panic(err)
 		}
 	}
-	pgdb, err := openDB("localhost", 5432, "logging_golang")
+	db, err := openDB("localhost", 5432, "logging_golang")
 	checkErr(err)
 
-	infoLog, err := logpg.NewCustomLoggerPG("INFO", log.Ldate|log.Ltime|log.Lmicroseconds|log.Llongfile, pgdb)
+	infoLog, err := logpg.NewCustomLoggerPG("INFO", log.Ldate|log.Ltime|log.Lmicroseconds|log.Llongfile, db)
 	checkErr(err)
 
-	infoLog.Println("Hello World")
+	infoLog.Println("hello world logging some stuff")
+
 }
