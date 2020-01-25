@@ -31,12 +31,12 @@ func main() {
 	db, err := openDB("localhost", 5432, "logging_golang")
 	checkErr(err)
 
-	infoLog, err := logpg.NewCustomLoggerPG("INFO", log.Ldate|log.Ltime|log.Lmicroseconds|log.Llongfile, db)
+	infoLog, err := logpg.NewCustomLoggerPG("ERROR", log.Ldate|log.Ltime|log.Lmicroseconds|log.Llongfile, db)
 	checkErr(err)
 
-	infoLog.Println("hello world logging some stuff")
+	infoLog.Println("hello world logging some error stuff")
 	pglogs := logpg.NewLogDAO(db)
-	logs, _ := pglogs.Latest1Day()
+	logs, err := pglogs.Latest1DayWithPrefix("ERROR")
 	for _, log := range logs {
 		fmt.Println(log)
 	}
