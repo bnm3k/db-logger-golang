@@ -35,5 +35,9 @@ func main() {
 	checkErr(err)
 
 	infoLog.Println("hello world logging some stuff")
-
+	pglogs := logpg.NewLogDAO(db)
+	logs, _ := pglogs.Latest1Day()
+	for _, log := range logs {
+		fmt.Println(log)
+	}
 }
