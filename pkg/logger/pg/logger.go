@@ -45,7 +45,7 @@ func (c *customOut) Write(log []byte) (n int, err error) {
 
 func newCustomOut(db *sql.DB) *customOut {
 	return &customOut{
-		r:          regexp.MustCompile(`^(\w+)\s+(\d{4}\/\d{2}\/\d{2}\s)?(\d{2}:\d{2}:\d{2}(\.\d+)?\s)?(.*\.go:\d+:\s)?([\w\n]*)`),
+		r:          regexp.MustCompile(`^(\w+)\s+(\d{4}\/\d{2}\/\d{2}\s)?(\d{2}:\d{2}:\d{2}(\.\d+)?\s)?(.*\.go:\d+:\s)?([\w\W]*)`),
 		db:         db,
 		insertStmt: "insert into log(prefix, log_time, file, payload) values ($1, $2, $3, $4)",
 	}
