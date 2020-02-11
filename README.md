@@ -474,40 +474,56 @@ I did some benchmarks (using go test benchmark utility). They were not very rigo
 
 ### Using an embedded database instead (leveldb)
 
-For simple applications though, using Postgres for logging is a bit excessive. Even if both the application and Postgres are running on the same machine, Postgres still has to run as an entire server on a different process. Moreoever, if our instance of Postgres fails or is shut down, or een the connection is messed up, our application, (with the logging code we have so far), also fails along. 
+For simple applications though, using Postgres for logging is a bit excessive. Even if both the application and Postgres are running on the same machine, Postgres still has to run as an entire server on a different process. Moreoever, if our instance of Postgres fails or is shut down, or even the connection is messed up, our application, (with the logging code we have so far), also fails along.  We could add a failover strategy such as redirecting to stdout or a file (or even a csv which will be easier to bulk insert into postgres later on). Or, we could simply use an embedded database which runs in the same process as our application. 
 
-We could add a failover strategy such as redirecting to stdout or a file (or even a csv which will be easier to bulk insert into postgres later on). 
 
-Or, we could simply use an embedded database which runs in the same process as our application. 
 
 Let's use an embedded database. Since we're already using a relational database, the option that would require the least amount of modification is [sqlite](https://www.sqlite.org/index.html). Still, I wanted to try out something more fun, maybe to the tune of [leveldb](https://en.wikipedia.org/wiki/LevelDB). 
 
-Like sqlite, leveldb is 'embeddable'. Unlike sqlite, leveldb is a key-value nosql database. Therefore, we don't really need to parse and structure our log output, we could just dump it as it is into leveldb. However, we do need to think about which key to use. Such a key not only has to be unique, it also has to facilitate efficient querying of the log output. I decided to use a concatenation of both the log prefix and the timestamp as the key:
+
+
+Like sqlite, [leveldb](https://github.com/syndtr/goleveldb) is 'embeddable'. Unlike sqlite, leveldb is a key-value nosql database. Therefore, we don't really need to parse and structure our log output, we could just dump it as it is into leveldb. However, we do need to think about which key to use. Such a key not only has to be unique, it also has to facilitate efficient querying of the log output. I decided to use a concatenation of both the log prefix and the timestamp as the key. Additionally, since the log output is already being parsed into a struct when we were working with Postgres, it might as well be stored as json:
 
 ```go
-//add key here
+type customOutLevelDB struct {
+	db *leveldb.DB
+	lp *logParser
+}
+
+func (c *customOutLevelDB) Write(log []byte) (int, error) {
+	pl, err := c.lp.parseLog(string(log))
+	if err != nil {
+		return -1, err
+	}
+	key := fmt.Sprintf("%s!%020d", pl.Prefix, pl.LogTime.Unix())
+	plJSON, err := json.Marshal(pl)
+	if err != nil {
+		return -1, err
+	}
+	err = c.db.Put([]byte(key), plJSON, nil)
+
+	return len(log), err
+}
 ```
+
+
 
 I could (and should) also append a random value such as a [short-id](https://github.com/teris-io/shortid) since two separte logs could potentially have the same prefix and timestamp but that's let's pretend that'll never happen.
 
-Additionally, since the log output is already being parsed into a struct when we were working with Postgres, it might as well be stored as json, all we have to do is add those tag-thingies and make all the struct fields exportable:
 
-```go
-// new struct field
-```
 
-Finally, all that's left is insertion into leveldb
-
-```go
-// inserting into leveldb
-```
-
-The great thing about relational databases is that they give us a lot of flexibility and options when it comes to querying as we have seen. Furthermore, their rich array of data types allow us to encode more aspects of our data. With key-value stores though, all we have to work with are keys, for which leveldb only sees as opaque byte arrays, regardless of what they encode. Since leveldb uses lexicographical order to sort the keys, we have to keep in mind some of the assumptions inherent in the key format used above. For one, it's expected that querying will be limited to a select prefix. Secondly, given that lexicographic order is not the same as temporal or even numeric order, we might (and will) have situation where an earlier timestamp is 'greater' than a more recent timestamp when we do know that the opposite is true. For example, under lexicographic order, the following relation between the timestamps holds true:
+Note, that the timestamp value is padded. The great thing about relational databases is that they give us a lot of flexibility and options when it comes to querying as we have seen. Furthermore, their rich array of data types allow us to encode more aspects of our data. With key-value stores though, all we have to work with are keys, for which leveldb only sees as opaque byte arrays, regardless of what they encode. Since leveldb uses lexicographical order to sort the keys, we have to keep in mind some of the assumptions inherent in the key format used above. For one, it's expected that querying will be limited to a select prefix. Secondly, given that lexicographic order is not the same as temporal or even numeric order, we might (and will) have situation where an earlier timestamp is 'greater' than a more recent timestamp when we do know that the opposite is true. For example, under lexicographic order, the following relation between the timestamps holds true:
 
 ```
 15" > "1479953943"
 ```
 
-For the time being, we'll wrongly assume that all timestamps have the same number of digits so that ordering works as expected. 
+As you've seen, this is remedied by padding the timestamp. The prefixes should probably be padded too but I've yet to come up with an edge case that necessitates this. 
 
-With all that in mind, querying for logs such as `ERROR` logs output in the last 24 hours is as follows:
+
+
+TODO, add code for querying leveldb for logs.
+
+
+
+And that's it! PS, all the code is [here](https://github.com/nagamocha3000/db-logger-golang). I've also included a simple CLI that uses the custom logger, e.g. retrieving logs from db, clearing logs etc.
