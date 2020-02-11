@@ -6,13 +6,13 @@ import (
 	"regexp"
 )
 
-type customOut struct {
+type customOutPG struct {
 	db         *sql.DB
 	insertStmt string
 	lp         *logParser
 }
 
-func (c *customOut) Write(log []byte) (int, error) {
+func (c *customOutPG) Write(log []byte) (int, error) {
 	pl, err := c.lp.parseLog(string(log))
 	if err != nil {
 		return -1, err
@@ -22,8 +22,8 @@ func (c *customOut) Write(log []byte) (int, error) {
 	return len(log), err
 }
 
-func newCustomOut(db *sql.DB) *customOut {
-	return &customOut{
+func newcustomOutPG(db *sql.DB) *customOutPG {
+	return &customOutPG{
 		db:         db,
 		insertStmt: "insert into log(prefix, log_time, file, payload) values ($1, $2, $3, $4)",
 		lp:         newLogParser(),
@@ -37,7 +37,7 @@ func NewCustomLoggerPG(prefix string, flag int, db *sql.DB) (*log.Logger, error)
 	if err != nil || match == false {
 		return nil, ErrInvalidPrefix
 	}
-	cOut := newCustomOut(db)
+	cOut := newcustomOutPG(db)
 	return log.New(cOut, prefix+"\t", flag), nil
 
 }
