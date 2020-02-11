@@ -1,6 +1,7 @@
 package clilogs
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"sort"
@@ -16,38 +17,28 @@ func checkErr(err error) {
 }
 
 //SetupCLI ...
-func SetupCLI(pglogs logpg.LogDAO) *cli.App {
-	var dbName string
+func SetupCLI(db *sql.DB) *cli.App {
+	pglogs := logpg.NewLogDAO(db)
 	app := &cli.App{
 		Name:    "logs_cli",
 		Usage:   "Handle app logs stored in pg via cli",
 		Version: "v1.0.0",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "dbName",
-				Aliases:     []string{"n"},
-				Value:       "logging_golang",
-				Usage:       "set `DBNAME`",
-				Destination: &dbName,
-			},
-		},
 		Commands: []*cli.Command{
 			{
 				Name:    "clear_logs",
 				Aliases: []string{"c"},
 				Usage:   "clear all logs by truncating log table",
 				Action: func(c *cli.Context) error {
-					fmt.Printf("clearing the logs %q\n", dbName)
+					fmt.Println("clearing the logs from db")
 					err := pglogs.ClearLogs()
 					return err
 				},
 			},
 			{
-				Name:    "print_logs",
-				Aliases: []string{"p"},
-				Usage:   "print all logs from past timeframe",
+				Name:  "print_logs",
+				Usage: "print all logs from past timeframe",
 				Flags: []cli.Flag{
-					&cli.StringFlag{Name: "prefix", Aliases: []string{"p"}, Value: "ERROR"},
+					&cli.StringFlag{Name: "prefix", Aliases: []string{"p"}, Value: "INFO"},
 				},
 				Action: func(c *cli.Context) error {
 					logs, err := pglogs.Latest1DayWithPrefix(c.String("prefix"))
@@ -58,6 +49,30 @@ func SetupCLI(pglogs logpg.LogDAO) *cli.App {
 						fmt.Println(log)
 					}
 					return nil
+				},
+			},
+			{
+				Name:    "add_log",
+				Aliases: []string{"a"},
+				Usage:   "add given log",
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "prefix", Aliases: []string{"p"}, Value: "INFO"},
+					&cli.StringFlag{Name: "log", Aliases: []string{"l"}, Value: ""},
+				},
+				Action: func(c *cli.Context) error {
+					prefix := c.String("prefix")
+					logStr := c.String("log")
+					if logStr == "" {
+						fmt.Println("provide log to add")
+						return nil
+					}
+					flags := log.Ldate | log.Ltime | log.Lmicroseconds | log.Llongfile
+
+					logger, err := logpg.NewCustomLoggerPG(prefix, flags, db)
+					if err == nil {
+						logger.Print(logStr)
+					}
+					return err
 				},
 			},
 		},

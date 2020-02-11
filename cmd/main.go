@@ -1,12 +1,19 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	_ "github.com/lib/pq"
 	logcli "github.com/nagamocha3000/db-logger-golang/pkg/cli"
 	logpg "github.com/nagamocha3000/db-logger-golang/pkg/logger"
 )
+
+func checkErr(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func main() {
 
@@ -15,18 +22,9 @@ func main() {
 	defer closeDB()
 	checkErr(err)
 
-	//get logs DAO
-	pglogs := logpg.NewLogDAO(db)
-
 	//setup CLI
-	app := logcli.SetupCLI(pglogs)
+	app := logcli.SetupCLI(db)
 	err = app.Run(os.Args)
 	checkErr(err)
 
-	/*
-			//using custom logger
-		errLog, err := logpg.NewCustomLoggerPG("ERROR", log.Ldate|log.Ltime|log.Lmicroseconds|log.Llongfile, db)
-		checkErr(err)
-		errLog.Println("hello world logging some error stuff")
-	*/
 }
