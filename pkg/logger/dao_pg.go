@@ -74,3 +74,9 @@ func (l *LogDAO) Latest1WeekWithPrefix(prefix string) ([]string, error) {
 		where log_time >= now() - '1 Week'::interval and prefix = $1`
 	return l.latestHelper(stmt, prefix)
 }
+
+//ClearLogs ...
+func (l *LogDAO) ClearLogs() error {
+	_, err := l.db.Exec("truncate log")
+	return err
+}
