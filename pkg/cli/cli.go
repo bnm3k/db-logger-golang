@@ -68,7 +68,8 @@ func SetupCLI(db *sql.DB) *cli.App {
 					}
 					flags := log.Ldate | log.Ltime | log.Lmicroseconds | log.Llongfile
 
-					logger, err := logpg.NewCustomLoggerPG(prefix, flags, db)
+					logger, flush, err := logpg.NewCustomLoggerPGConc(prefix, flags, db)
+					defer flush()
 					if err == nil {
 						logger.Print(logStr)
 					}

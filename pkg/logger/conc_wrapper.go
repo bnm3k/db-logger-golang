@@ -60,7 +60,7 @@ func newCustomLoggerConcHelper(prefix string, flag int, cout io.Writer) (*log.Lo
 
 //NewCustomLoggerPGConc ...
 func NewCustomLoggerPGConc(prefix string, flag int, db *sql.DB) (*log.Logger, func(), error) {
-	pgcout := newCustomOut(db)
+	pgcout := newcustomOutPG(db)
 	return newCustomLoggerConcHelper(prefix, flag, pgcout)
 }
 
