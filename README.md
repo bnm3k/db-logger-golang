@@ -385,13 +385,90 @@ The querying options are endless and if we need to incorporate some additional d
 
 ### Increasing write throughput
 
-This is where things start getting a little bit funky.
+This is where things start getting a little bit funky. And by funky, I mean take the methodologies fleshed out here with a grain of salt.
 
-As it stands, any part of our application that uses the custom Logger has to wait for postgres to confirm the insertion. This ropes in additional latency (particularly compared to simply logging to stdout or even to a file).
 
-Now, so far, I've insisted on delaying optimizations and extensions (such as adding an index to the log_time column) until they are severely needed. Therefore, this section sort of betrays any pragmatism I hitherto held. Still, I thought it might be a fun undertaking just for the sake of it. 
 
-However, if I'm to be fully thorough in increasing throughput, I should have probably carried out benchmark tests to see just how much latency I've shaven off and tried out other approaches, which I didn't. So take this section (and even the entire article for that matter) with a grain of salt, see if it's worth it and tinker it to your own needs.
+As it stands, any part of our application that uses the custom Logger has to wait for postgres to confirm the insertion. Under high load, this ropes in additional latency (particularly compared to simply logging to stdout or even to a file).
+
+
+
+Now, so far, I've insisted on delaying optimizations and extensions (such as adding an index to the log_time column) until they are severely needed. This section thought sort of betrays any pragmatism I've claimed to hold. Still, I thought it might be a fun undertaking just for the sake of it. 
+
+
+
+The overall goal was to have workers that do the actual logging to the database, an unbounded concurrent queue and a flush operation which the application can call to ensure all pending logs have been inserted. Now, for the unbounded queue, it has its advantages, particularly high-througput but it also has it's disadvantages in that slow consumers will lead to huge (undesirable) build-up. I also wanted to avoid using mutex or external modules for this so my only option for a concurrent queue with the features I required was to use Go's channels.
+
+
+
+Without further ado, here's the code. `newOutWrapperConc` (I should get better at naming stuff), can wrap any `io.Writer`. The size of the 'queue', ie the buffer size of the channel and the number of workers are set using the `bufSize` and `logWorkers` parameters respectively.
+
+```go
+func newOutWrapperConc(out io.Writer, bufSize, logWorkers int) *customOutConc {
+	logsCh := make(chan []byte, bufSize)
+
+	var wg sync.WaitGroup
+	for i := 0; i < logWorkers; i++ {
+		wg.Add(1)
+		go logWorker(out, logsCh, &wg)
+	}
+
+	return &customOutConc{
+		logsCh: logsCh,
+		wg:     &wg,
+	}
+}
+```
+
+
+
+As mentioned, we also need a 'flush' function. Before so, here's the `customOutConc` which encapsulates the `logsCh` and `wg` `sync.WaitGroup` value which as we shall see, is used to ensure each worker is done before closing.
+
+```go
+type customOutConc struct {
+	logsCh chan []byte
+	wg     *sync.WaitGroup
+}
+```
+
+
+
+The workers are very simply, they receive logs from the `logsCh` and write it to the given `io.Writer`. When the channel is closed, they indicate via the `wg sync.WaitGroup` that they are done:
+
+```go
+func logWorker(out io.Writer, logsCh <-chan []byte, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for log := range logsCh {
+		out.Write(log)
+	}
+}
+```
+
+
+
+On the other hand, the flush/close function is closed to ensure that no more logging takes place (lest a panic occurs) and that workers complete any pending loggings. The flush/close function does this (ensuring all workers are done) by 'waiting' on the   WaitGroup:
+
+```go
+func (cc *customOutConc) Close() {
+	close(cc.logsCh)
+	cc.wg.Wait()
+}
+```
+
+
+
+Finally, the `Write` method is implemented so that the value itself can be supplied to a `logger` instance. When a log is written, it's simply sent to the `logsCh` channel so that any of the workers can write it:
+
+```go
+func (cc *customOutConc) Write(log []byte) (int, error) {
+	cc.logsCh <- log
+	return 0, nil
+}
+```
+
+
+
+I did some benchmarks (using go test benchmark utility). They were not very rigorous. The concurrent logger was set to a buffered channel of size 50 and 4r log workers. When only one goroutine was generating logs, the concurrent logger was roughly  42% faster than the plain logger. When 10 goroutines were generating logs concurrently, the concurrent logger was 54% faster than the plain logger.  There are rooms for improvement, for example chunking and inserting multiple logs in a single sql insert statement. But as it is, it's really not worth the hussle any further.
 
 
 
