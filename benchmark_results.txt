@@ -1,0 +1,33 @@
+plain logger times b.N:
+-  2772            409598 ns/op
+-  3060            386979 ns/op
+-  2952            406603 ns/op
+-  2938            399366 ns/op
+-  3136            390367 ns/op
+-  2595            402340 ns/op
+
+plain logger 10 goroutines logging concurrently b.N
+-  258           4521303 ns/op
+-  254           4153268 ns/op
+-  159           6649137 ns/op
+-  262           4670061 ns/op
+-  254           4431802 ns/op
+-  249           4643276 ns/op
+
+
+
+conc logger times b.N:
+- 4773            219336 ns/op
+- 4627            216177 ns/op
+- 4934            236200 ns/op
+- 5251            219984 ns/op
+- 4807            224038 ns/op
+- 4159            256267 ns/op
+
+conc logger 10 goroutines logging concurrently b.N
+- 571           2196244 ns/op
+- 570           2152201 ns/op
+- 512           2378004 ns/op
+- 546           2127271 ns/op
+- 541           2142404 ns/op
+- 537           2231405 ns/op
